@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 import gspread
+from gspread_formatting import *
+# from gspread_formatting import ConditionalFormatRule, GridRange, CellFormat, Color, TextFormat, BooleanCondition
 from oauth2client.service_account import ServiceAccountCredentials
 
 load_dotenv()
@@ -43,13 +45,43 @@ async def add_task(ctx, priority: int, *, task_description: str):
 
     # Add task
     new_row = [
-        str(ctx.author),  # Username
+        str(ctx.author.display_name),  # Username
         task_description,
+        'Dmitriy',
         "Not started",  # Status
         priority
     ]
     sheet.append_row(new_row)
-
+    last_row = len(sheet.get_all_values())
+    rules = get_conditional_format_rules(sheet)
+    new_rules = [
+        ConditionalFormatRule(
+            ranges=[GridRange.from_a1_range(f"D1:D{last_row}", sheet)],  # Диапазон
+            booleanRule=BooleanRule(
+            condition=BooleanCondition("TEXT_EQ", ["Not started"]),  # Условие
+            format=CellFormat( backgroundColor=Color(1, 0, 0))
+            )
+        ),
+        ConditionalFormatRule(
+            ranges=[GridRange.from_a1_range(f"D1:D{last_row}", sheet)],  # Диапазон
+            booleanRule=BooleanRule(
+            condition=BooleanCondition("TEXT_EQ", ["Processing"]),  # Условие
+            format=CellFormat(backgroundColor=Color(1, 0.6, 0))
+            )
+        ),
+        ConditionalFormatRule(
+            ranges=[GridRange.from_a1_range(f"D1:D{last_row}", sheet)],  # Диапазон
+            booleanRule=BooleanRule(
+            condition=BooleanCondition("TEXT_EQ", ["Completed"]),  # Условие
+            format=CellFormat(backgroundColor=Color(0, 1, 0))
+            )
+        )
+    ]
+    # set_conditional_format(sheet, rules)
+    rules.clear()
+    for r in new_rules:
+        rules.append(r)
+    rules.save()
     await ctx.send(f"✅ Task added: **{task_description}** (Priority: {priority})")
 
 
@@ -60,7 +92,7 @@ async def show_tasks(ctx):
     if not tasks:
         await ctx.send("📭 The task list is empty!")
         return
-    tasks_text = "\n".join([f"{i+1}. {task['Task']} (Priority: {task['Priority']})" for i, task in enumerate(tasks)])
+    tasks_text = "\n".join([f"{i+1}. {task['Task']} (Priority: {task['Priority (1-10) 1 being lowest priority']}, requested by: {task['Requested By']})" for i, task in enumerate(tasks)])
     await ctx.send(f"📋 **Task list:**\n{tasks_text}")
 
 
